@@ -12,9 +12,9 @@ var TweliteReceievedPacket = function(buffer) {
     this.fromDeviceId = buffer.slice(1,3).toString();
     this.datatype = buffer.slice(3,5).toString();   // fixed 0x81
     this.packetId = buffer.slice(5,7).toString();
-    this.protcol = buffer.slice(7,9).toString();
+    this.protocol = buffer.slice(7,9).toString();
     this.signal = buffer.slice(9,11).toString();
-    this.terminal = buffer.slice(11,19).toString();
+    this.terminalId = buffer.slice(11,19).toString();
     this.toId = buffer.slice(19,21).toString();
     this.timestamp = buffer.slice(21,25).toString();
     this.repeater_flag = buffer.slice(25,27).toString();
@@ -29,8 +29,6 @@ var TweliteReceievedPacket = function(buffer) {
 // Tweliteの送信パケット
 var TweliteSendPacket = function() {
     this.toDeviceId = 0x78; // default: target
-    this.command = 0x80;    // fixed
-    this.protcol = 0x01;    // fixed
     this.digialOut = 0x00;
     this.digialOutChanged = 0x00;
     this.pwm = [ 0xFFFF,0xFFFF,0xFFFF,0xFFFF ];
@@ -84,12 +82,32 @@ var sp = new serialport.SerialPort(portName, {
 	parser: serialport.parsers.readline("\n")
 });
 
+var ClientStatus = function(){
+    var lastReceivedPacket = [];
+    
+    this.setPacket = function(packet) {
+        lastReceivedPacket[packet.terminalId] = packet;
+        var d = new Date();
+        packet.lastUpdate = d.getTime();
+        console.log(packet.terminalId + " updated");
+    }
+    this.getById = function(terminalId) {
+        var packet = lastReceivedPacket[terminalId];
+        var d = new Date();
+        if(packet && packet.lastUpdate > d.getTime() - 10*1000 /* 10 sec */ ) {
+            return packet;
+        }
+    }
+}
+var clientStatus = new ClientStatus();
+
 sp.on('data', function(input) {
     var buffer = new Buffer(input, 'utf8');
 
     try {
         console.log("received:" + buffer);
-        data = new TweliteReceievedPacket(buffer);
+        packet = new TweliteReceievedPacket(buffer);
+        clientStatus.setPacket(packet);
 //        console.log(data);
     } catch(e) {
         console.log("error:"+e);
@@ -106,10 +124,13 @@ sp.on('close', function(e) {
 
 
 // APIサーバ
-var express = require("express");
-var app = express();
+var express = require('express');
+var app = express(),
+    path = require('path');
+app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/', function (req, res) {
+// get API 
+app.get('/api', function (req, res) {
     var digitalOut = [
         req.query.d1,
         req.query.d2,
@@ -142,9 +163,24 @@ app.get('/', function (req, res) {
     console.log("SEND PACKET");
     console.log(packet.toEncoded());
     
-    res.send("SENDED");
+    res.send("SENDED"+packet.toEncoded());
 });
+app.get('/status', function (req, res) {
+    var terminalId =  req.query.id;
+    if( terminalId == undefined ){
+        res.send("id need");
+    } else {
+        var st = clientStatus.getById(terminalId);
+        if( st == undefined ) {
+            res.send(terminalId + " not found.");
+        } else {
+            res.send(st);
+        }
+    }
+});
+
 app.listen(8000);
+
 
 
 console.log("server start");

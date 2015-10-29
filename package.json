@@ -9,6 +9,8 @@
   "author": "omega",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.13.3"
+    "ejs": "^2.3.4",
+    "express": "^4.13.3",
+    "serialport": "^2.0.2"
   }
 }
