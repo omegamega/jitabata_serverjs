@@ -1,15 +1,6 @@
 var serialport = require("serialport");
 
-var portName = "COM3";
-var sp = new serialport.SerialPort(portName, {
-	baudRate: 115200,
-	dataBits: 8,
-	parity: 'none',
-	stopBits: 1,
-	flowControl: false,
-	parser: serialport.parsers.readline("\n")
-});
-
+// Tweliteの受信パケット
 var TweliteReceievedPacket = function(buffer) {
     var DATATYPE_RECEIVE = '81';
     
@@ -35,6 +26,7 @@ var TweliteReceievedPacket = function(buffer) {
     this.checksum = buffer.slice(47,49).toString();
 };
 
+// Tweliteの送信パケット
 var TweliteSendPacket = function() {
     this.toDeviceId = 0x78; // default: target
     this.command = 0x80;    // fixed
@@ -80,6 +72,18 @@ var TweliteSendPacket = function() {
     }
 }
 
+
+// シリアルポート接続開始
+var portName = "COM3";
+var sp = new serialport.SerialPort(portName, {
+	baudRate: 115200,
+	dataBits: 8,
+	parity: 'none',
+	stopBits: 1,
+	flowControl: false,
+	parser: serialport.parsers.readline("\n")
+});
+
 sp.on('data', function(input) {
     var buffer = new Buffer(input, 'utf8');
 
@@ -101,6 +105,7 @@ sp.on('close', function(e) {
 
 
 
+// APIサーバ
 var express = require("express");
 var app = express();
 
@@ -131,7 +136,6 @@ app.get('/', function (req, res) {
         var val = pwm[i];
         if(val != undefined ) {
             packet.setPWM(i, parseInt(val));
-            console.log("PWM" +val);
         }
     }
     sp.write(packet.toEncoded());
