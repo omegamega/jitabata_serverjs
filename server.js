@@ -1,29 +1,65 @@
-var serialport = require("serialport");
+var serialport = require('serialport');
+var portName = process.argv[2];
+if( portName == undefined ) {
+    console.log("How to use.");
+    console.log("\t>node server.js [portName]");
+    console.log("\tUnix/Linux\t/dev/tty.usbserial-XXXXXX");
+    console.log("\tWindows\tCOM1,COM2...");
+    console.log("check your serialName.")
+    process.exit();
+}
+
+sumCheck = function( buffer ) {    
+    var sum = 0;
+    for(var i=1 ; i<buffer.length ; i+=2 ){
+        sum = (sum + parseInt(buffer.slice(i,i+2),16)) & 0xFF;
+    }
+    return sum;
+};
 
 // Tweliteの受信パケット
 var TweliteReceievedPacket = function(buffer) {
-    var DATATYPE_RECEIVE = '81';
-    
-    this.getRawString = function() {
-        return this.data;
-    };
-
     this._rawBuffer = buffer;
-    this.fromDeviceId = buffer.slice(1,3).toString();
+    this.deviceId = parseInt(buffer.slice(1,3).toString(), 16);
     this.datatype = buffer.slice(3,5).toString();   // fixed 0x81
     this.packetId = buffer.slice(5,7).toString();
     this.protocol = buffer.slice(7,9).toString();
-    this.signal = buffer.slice(9,11).toString();
-    this.terminalId = buffer.slice(11,19).toString();
-    this.toId = buffer.slice(19,21).toString();
-    this.timestamp = buffer.slice(21,25).toString();
-    this.repeater_flag = buffer.slice(25,27).toString();
-    this.battery = buffer.slice(27,31).toString();
-    this.digialIn = buffer.slice(33,35).toString();
-    this.digialChanged = buffer.slice(35,37).toString();
-    this.analogIn = buffer.slice(37,45).toString();
-    this.analogOffset = buffer.slice(45,47).toString();
-    this.checksum = buffer.slice(47,49).toString();
+    this.signal = parseInt(buffer.slice(9,11).toString(), 16);
+    this.terminalId = parseInt(buffer.slice(11,19).toString(), 16);
+    this.toId = parseInt(buffer.slice(19,21).toString(), 16);
+    this.timestamp = parseInt(buffer.slice(21,25).toString(), 16);
+    this.repeater_flag = parseInt(buffer.slice(25,27).toString(), 16);
+    this.battery = parseInt(buffer.slice(27,31).toString(), 16);
+    
+    var rawDigitalIn = parseInt(buffer.slice(33,35).toString(), 16);
+    this.digialIn = [
+        (rawDigitalIn >> 0 & 1) ? true : false,
+        (rawDigitalIn >> 1 & 1) ? true : false,
+        (rawDigitalIn >> 2 & 1) ? true : false,
+        (rawDigitalIn >> 3 & 1) ? true : false,
+    ];
+    
+    var rawDigitalChanged = parseInt(buffer.slice(35,37).toString(), 16);
+    this.digialChanged = [
+        (rawDigitalChanged >> 0 & 1) ? true : false,
+        (rawDigitalChanged >> 1 & 1) ? true : false,
+        (rawDigitalChanged >> 2 & 1) ? true : false,
+        (rawDigitalChanged >> 3 & 1) ? true : false, 
+    ]
+    this.analogIn = [
+        parseInt(buffer.slice(37,39).toString(), 16),
+        parseInt(buffer.slice(39,41).toString(), 16),
+        parseInt(buffer.slice(41,44).toString(), 16),
+        parseInt(buffer.slice(43,45).toString(), 16),
+    ]
+    this.analogOffset = parseInt(buffer.slice(45,47).toString(), 16);
+    this.checksum = parseInt(buffer.slice(47,49).toString(), 16);
+    
+    if(sumCheck(buffer) == 0){
+        this.isValid = true;
+    } else {
+        this.isValid = false;
+    }
 };
 
 // Tweliteの送信パケット
@@ -54,10 +90,10 @@ var TweliteSendPacket = function() {
      */ 
     this.setDigitalOut = function(index, value) {
         if( value == true ) {
-            this.digialOut |= 1 >> index;
-            this.digialOutChanged |= 1 >> index;
+            this.digialOut |= 1 << index;
+            this.digialOutChanged |= 1 << index;
         } else {
-            this.digialOutChanged |= 1 >> index;
+            this.digialOutChanged |= 1 << index;
         }
     };
     
@@ -72,7 +108,6 @@ var TweliteSendPacket = function() {
 
 
 // シリアルポート接続開始
-var portName = "COM3";
 var sp = new serialport.SerialPort(portName, {
 	baudRate: 115200,
 	dataBits: 8,
@@ -81,21 +116,37 @@ var sp = new serialport.SerialPort(portName, {
 	flowControl: false,
 	parser: serialport.parsers.readline("\n")
 });
+console.log("serialport:" + portName);
 
 var ClientStatus = function(){
-    var lastReceivedPacket = [];
+    var lastReceivedPackets = [];
+    var LOST_CONTACT_TIMEOUT = 5*1000;  // 5sec
     
     this.setPacket = function(packet) {
-        lastReceivedPacket[packet.terminalId] = packet;
+        var id = packet.deviceId;
+        lastReceivedPackets[id] = packet;
         var d = new Date();
         packet.lastUpdate = d.getTime();
-        console.log(packet.terminalId + " updated");
+        console.log("Client " + id + " updated");
     }
-    this.getById = function(terminalId) {
-        var packet = lastReceivedPacket[terminalId];
+    this.getById = function(id) {
+        var packet = lastReceivedPackets[id];
         var d = new Date();
-        if(packet && packet.lastUpdate > d.getTime() - 10*1000 /* 10 sec */ ) {
+        if(packet && packet.lastUpdate > d.getTime() - LOST_CONTACT_TIMEOUT ) {
             return packet;
+        }
+    }
+    this.getList = function(){
+        this.gc();
+        return this.lastReceivedPackets;
+    }
+    this.gc = function(){
+        var d = new Date();
+        for(id in this.lastReceivedPackets) {
+            if(this.lastReceivedPackets[id].lastUpdate < d.getTime() - LOST_CONTACT_TIMEOUT) {
+                delete this.lastReceivedPackets[id]
+            };
+        console.log("Client " + id + " lost");
         }
     }
 }
@@ -108,17 +159,14 @@ sp.on('data', function(input) {
         console.log("received:" + buffer);
         packet = new TweliteReceievedPacket(buffer);
         clientStatus.setPacket(packet);
-//        console.log(data);
     } catch(e) {
         console.log("error:"+e);
         return;
     }
 
 });
-
 sp.on('close', function(e) {
-    console.log("CLOSED");
-    console.log(e);
+    console.log("CONNECTION CLOSED");
 })
 
 
@@ -166,17 +214,26 @@ app.get('/api', function (req, res) {
     res.send("SENDED"+packet.toEncoded());
 });
 app.get('/status', function (req, res) {
-    var terminalId =  req.query.id;
-    if( terminalId == undefined ){
+    var id =  req.query.id;
+    if( id == undefined ){
         res.send("id need");
     } else {
-        var st = clientStatus.getById(terminalId);
+        if( id.slice(0,2) == "0x") {
+            id = parseInt(id, 16);
+        } else {
+            id = parseInt(id, 10);
+        }
+        var st = clientStatus.getById(id);
         if( st == undefined ) {
-            res.send(terminalId + " not found.");
+            res.send("Client " + id + " not found.");
         } else {
             res.send(st);
         }
     }
+});
+app.get('/list', function(req , res) {
+     res.send(clientStatus.getList());
+     console.log(clientStatus.getList());
 });
 
 app.listen(8000);
