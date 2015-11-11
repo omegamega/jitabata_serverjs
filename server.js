@@ -178,7 +178,7 @@ var app = express(),
 app.use(express.static(path.join(__dirname, 'public')));
 
 // get API 
-app.get('/api', function (req, res) {
+app.get('/api/engine', function (req, res) {
     var digitalOut = [
         req.query.d1,
         req.query.d2,
@@ -211,29 +211,45 @@ app.get('/api', function (req, res) {
     console.log("SEND PACKET");
     console.log(packet.toEncoded());
     
-    res.send("SENDED"+packet.toEncoded());
+    var result = {
+        "status":"OK",
+        "packet":packet.toEncoded(),
+    };
+    res.send(JSON.stringify(result));
 });
-app.get('/status', function (req, res) {
+app.get('/api/status', function (req, res) {
     var id =  req.query.id;
     if( id == undefined ){
-        res.send("id need");
+        res.send(JSON.stringify(
+            {
+                "status":"PARAMERROR",
+                "error":"id require"
+            }
+        ));
+        return;
+    } 
+    if( id.slice(0,2) == "0x") {
+        id = parseInt(id, 16);
     } else {
-        if( id.slice(0,2) == "0x") {
-            id = parseInt(id, 16);
-        } else {
-            id = parseInt(id, 10);
-        }
-        var st = clientStatus.getById(id);
-        if( st == undefined ) {
-            res.send("Client " + id + " not found.");
-        } else {
-            res.send(st);
-        }
+        id = parseInt(id, 10);
     }
+    var st = clientStatus.getById(id);
+    
+    if( st == undefined ) {
+        var result = {
+            "status":"NOT_FOUND",
+            "id":id,
+        };
+    } else {
+        var result = {
+            "status":"OK",
+            "client":st,
+        };
+    }
+    res.send(JSON.stringify(result));
 });
-app.get('/list', function(req , res) {
-     res.send(clientStatus.getList());
-     console.log(clientStatus.getList());
+app.get('/api/list', function(req , res) {
+     res.send(JSON.stringify(clientStatus.getList()));
 });
 
 app.listen(8000);
