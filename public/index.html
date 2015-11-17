@@ -224,17 +224,25 @@ getStatus();
         
         <tr>
           <td>
-            <button class=" mdl-cell mdl-cell--1-col mdl-button mdl-js-button mdl-button--raised mdl-color-text--white mdl-color--indigo-700" onclick="sendPivotCommand(-1);return false">
+            <button class=" mdl-cell mdl-cell--1-col mdl-button mdl-js-button mdl-button--raised mdl-color-text--white mdl-color--indigo-700" onclick="sendPivotCommand(-2);return false">
               <i class="material-icons">undo</i>
             </button>
-          </td><td></td>
+          </td>
           <td>
-            <button class=" mdl-cell mdl-cell--1-col mdl-button mdl-js-button mdl-button--raised mdl-color-text--white mdl-color--indigo-700" onclick="sendStandardCommand(0,0);return false">
+            <button class=" mdl-cell mdl-cell--1-col mdl-button mdl-js-button mdl-button--raised mdl-color-text--white mdl-color--indigo-700" onclick="sendPivotCommand(-1);return false">
+            </button>
+          </td>
+          <td>
+            <button class="mdl-cell mdl-cell--1-col mdl-button mdl-js-button mdl-button--raised mdl-color-text--white mdl-color--indigo-700" onclick="sendStandardCommand(0,0);return false">
               <i class="material-icons">pause</i>
             </button>
           </td>
-          <td></td><td>
+          <td>
             <button class=" mdl-cell mdl-cell--1-col mdl-button mdl-js-button mdl-button--raised mdl-color-text--white mdl-color--indigo-700" onclick="sendPivotCommand(1);return false">
+            </button>
+          </td>
+          <td>
+            <button class=" mdl-cell mdl-cell--1-col mdl-button mdl-js-button mdl-button--raised mdl-color-text--white mdl-color--indigo-700" onclick="sendPivotCommand(2);return false">
               <i class="material-icons">redo</i>
             </button>
           </td>
@@ -243,7 +251,16 @@ getStatus();
         <tr>
           <td></td><td></td>
           <td>
-            <button class="mdl-cell mdl-cell--1-col mdl-button mdl-js-button mdl-button--raised mdl-color-text--white mdl-color--purple-A700" onclick="sendStandardCommand(-1,0);return false">
+            <button class="mdl-cell mdl-cell--1-col mdl-button mdl-js-button mdl-button--raised mdl-color-text--white mdl-color--purple-700" onclick="sendStandardCommand(-1,0);return false">
+            </button>
+          </td>
+          <td></td><td></td>
+        </tr>
+        
+        <tr>
+          <td></td><td></td>
+          <td>
+            <button class="mdl-cell mdl-cell--1-col mdl-button mdl-js-button mdl-button--raised mdl-color-text--white mdl-color--purple-A700" onclick="sendStandardCommand(-2,0);return false">
               <i class="material-icons">keyboard_arrow_down</i>
             </button>
           </td>
