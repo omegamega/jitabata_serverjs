@@ -5,6 +5,7 @@ if( portName == undefined ) {
     console.log("\t>node server.js [portName]");
     console.log("\tUnix/Linux\t/dev/tty.usbserial-XXXXXX");
     console.log("\tWindows\tCOM1,COM2...");
+    console.log("\tDemo mode\t DEMO");
     console.log("check your serialName.")
     process.exit();
 }
@@ -108,15 +109,38 @@ var TweliteSendPacket = function() {
 
 
 // シリアルポート接続開始
-var sp = new serialport.SerialPort(portName, {
-	baudRate: 115200,
-	dataBits: 8,
-	parity: 'none',
-	stopBits: 1,
-	flowControl: false,
-	parser: serialport.parsers.readline("\n")
-});
-console.log("serialport:" + portName);
+if(portName != "DEMO"){
+    var sp = new serialport.SerialPort(portName, {
+        baudRate: 115200,
+        dataBits: 8,
+        parity: 'none',
+        stopBits: 1,
+        flowControl: false,
+        parser: serialport.parsers.readline("\n")
+    });
+    
+    sp.on('data', function(input) {
+        var buffer = new Buffer(input, 'utf8');
+    
+        try {
+            console.log("received:" + buffer);
+            packet = new TweliteReceievedPacket(buffer);
+            clientStatus.setPacket(packet);
+        } catch(e) {
+            console.log("error:"+e);
+            return;
+        }
+    
+    });
+    sp.on('close', function(e) {
+        console.log("CONNECTION CLOSED");
+    });
+    
+    console.log("serialport:" + portName);
+}else{
+    var sp = null;
+    console.log("DEMO MODE");
+}
 
 var ClientStatus = function(){
     var lastReceivedPackets = [];
@@ -151,23 +175,6 @@ var ClientStatus = function(){
     }
 }
 var clientStatus = new ClientStatus();
-
-sp.on('data', function(input) {
-    var buffer = new Buffer(input, 'utf8');
-
-    try {
-        console.log("received:" + buffer);
-        packet = new TweliteReceievedPacket(buffer);
-        clientStatus.setPacket(packet);
-    } catch(e) {
-        console.log("error:"+e);
-        return;
-    }
-
-});
-sp.on('close', function(e) {
-    console.log("CONNECTION CLOSED");
-})
 
 
 
@@ -207,9 +214,12 @@ app.get('/api/engine', function (req, res) {
             packet.setPWM(i, parseInt(val));
         }
     }
-    sp.write(packet.toEncoded());
-    console.log("SEND PACKET");
-    console.log(packet.toEncoded());
+    if(sp != null) {
+        sp.write(packet.toEncoded());
+        console.log("SEND PACKET:" + packet.toEncoded());
+    }else{
+        console.log("DEMO PACKET:" + packet.toEncoded());
+    }
     
     var result = {
         "status":"OK",
@@ -253,7 +263,6 @@ app.get('/api/list', function(req , res) {
 });
 
 app.listen(8000);
-
 
 
 console.log("server start");
